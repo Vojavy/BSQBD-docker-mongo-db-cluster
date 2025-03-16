@@ -1,0 +1,100 @@
+version: "3.8"
+services:
+  configsvr1:
+    build: 
+      context: ./config-server
+    container_name: configsvr1
+    environment:
+      - REPLICA_SET_NAME=configReplSet
+      - INIT_CONFIG=true
+    ports:
+      - "27019:27019"
+    volumes:
+      - ./data/configsvr1:/data/configdb
+
+  configsvr2:
+    build: 
+      context: ./config-server
+    container_name: configsvr2
+    environment:
+      - REPLICA_SET_NAME=configReplSet
+      - INIT_CONFIG=false
+    ports:
+      - "27020:27019"
+    volumes:
+      - ./data/configsvr2:/data/configdb
+
+  configsvr3:
+    build: 
+      context: ./config-server
+    container_name: configsvr3
+    environment:
+      - REPLICA_SET_NAME=configReplSet
+      - INIT_CONFIG=false
+    ports:
+      - "27021:27019"
+    volumes:
+      - ./data/configsvr3:/data/configdb
+
+
+  shard1:
+    build: 
+      context: ./shard
+    container_name: shard1
+    environment:
+      - REPLICA_SET_NAME=shard1
+    ports:
+      - "27100:27100"
+      - "27101:27101"
+      - "27102:27102"
+    volumes:
+      - ./data/shard1_db1:/data/db1
+      - ./data/shard1_db2:/data/db2
+      - ./data/shard1_db3:/data/db3
+
+  shard2:
+    build: 
+      context: ./shard
+    container_name: shard2
+    environment:
+      - REPLICA_SET_NAME=shard2
+    ports:
+      - "27200:27100"
+      - "27201:27101"
+      - "27202:27102"
+    volumes:
+      - ./data/shard2_db1:/data/db1
+      - ./data/shard2_db2:/data/db2
+      - ./data/shard2_db3:/data/db3
+
+  shard3:
+    build: 
+      context: ./shard
+    container_name: shard3
+    environment:
+      - REPLICA_SET_NAME=shard3
+    ports:
+      - "27300:27100"
+      - "27301:27101"
+      - "27302:27102"
+    volumes:
+      - ./data/shard3_db1:/data/db1
+      - ./data/shard3_db2:/data/db2
+      - ./data/shard3_db3:/data/db3
+
+
+  mongos:
+    build: 
+      context: ./mongos
+    container_name: mongos
+    environment:
+      - CONFIG_REPL_SET=configReplSet
+    ports:
+      - "27017:27017"
+    depends_on:
+      - configsvr1
+      - configsvr2
+      - configsvr3
+      - shard1
+      - shard2
+      - shard3

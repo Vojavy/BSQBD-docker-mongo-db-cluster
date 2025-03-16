@@ -1,0 +1,39 @@
+[supervisord]
+nodaemon=true
+
+[program:mongod1]
+command=/bin/bash -c "exec mongod --config /etc/mongo_config/mongod1.conf"
+autostart=true
+autorestart=true
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+
+
+[program:mongod2]
+command=/bin/bash -c "exec mongod --config /etc/mongo_config/mongod2.conf"
+autostart=true
+autorestart=true
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+
+[program:mongod3]
+command=/bin/bash -c "exec mongod --config /etc/mongo_config/mongod3.conf"
+autostart=true
+autorestart=true
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+
+[program:init_shard]
+command=/bin/bash -c '/init-shard.sh'
+autostart=true
+autorestart=false
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0

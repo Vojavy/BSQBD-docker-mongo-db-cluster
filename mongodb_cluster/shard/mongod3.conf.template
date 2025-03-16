@@ -1,0 +1,14 @@
+# mongod3.conf
+systemLog:
+  destination: file
+  path: /var/log/mongodb/mongod3.log
+  logAppend: true
+storage:
+  dbPath: /data/db3
+net:
+  port: 27102
+  bindIp: 0.0.0.0
+replication:
+  replSetName: ${REPLICA_SET_NAME}
+sharding:
+  clusterRole: shardsvr

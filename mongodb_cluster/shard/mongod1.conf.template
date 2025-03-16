@@ -1,0 +1,14 @@
+# mongod1.conf
+systemLog:
+  destination: file
+  path: /var/log/mongodb/mongod1.log
+  logAppend: true
+storage:
+  dbPath: /data/db1
+net:
+  port: 27100
+  bindIp: 0.0.0.0
+replication:
+  replSetName: ${REPLICA_SET_NAME}
+sharding:
+  clusterRole: shardsvr
