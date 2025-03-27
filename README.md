@@ -172,6 +172,3 @@ Configure connection details via `scripts/.env`.
 - Authorization is enabled — only users created during initialization can access the cluster.
 - `mongos` does not store data — it acts as a router only.
 - NGINX can be further configured to add SSL/TLS termination, rate limiting, etc.
-
-Here's the updated `README.md` that provides detailed information about authorization, updated Docker Compose details, and NGINX with the correct port `27080`:
-
