@@ -1,123 +1,177 @@
 # NoSQL Cluster Project
 
-This project demonstrates a sharded MongoDB cluster that includes three config servers, three shard replica sets, and a mongos router. It also includes sample PDF files and Python scripts for managing these PDFs (upload, load, and delete).
+This project demonstrates a fully sharded MongoDB cluster setup with secure internal authentication, routing through `mongos`, and load balancing via NGINX. It also includes Python scripts for managing PDF files in MongoDB (via base64 documents or GridFS).
 
 ---
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 noSQL/
-├── files
-│   └── pdf
-│       ├── RUR_Rossumovi_Universalni_Roboty.pdf
-│       ├── zadání 1W.pdf
-│       ├── zadání 2.pdf
-│       └── zadání 3 (1).pdf
 ├── mongodb_cluster
-│   ├── config-server
-│   │   ├── Dockerfile             # Dockerfile for the config server container
-│   │   ├── configsvr.conf         # Configuration file for mongod in config server mode
-│   │   └── entrypoint.sh          # Entrypoint script for starting and initializing the config server
-│   ├── mongos
-│   │   ├── Dockerfile             # Dockerfile for the mongos container
-│   │   ├── entrypoint.sh          # Entrypoint script for starting mongos and registering shards
-│   │   └── mongos.conf            # Configuration file for mongos
-│   ├── shard
-│   │   ├── Dockerfile             # Dockerfile for the shard container
-│   │   ├── entrypoint.sh          # Entrypoint script for the shard container (using Supervisor)
-│   │   ├── init-shard.sh          # Script to initialize the shard replica set
-│   │   ├── mongod1.conf.template  # Template configuration for the first mongod instance in a shard
-│   │   ├── mongod2.conf.template  # Template configuration for the second mongod instance in a shard
-│   │   ├── mongod3.conf.template  # Template configuration for the third mongod instance in a shard
-│   │   └── supervisord.conf.template  # Template configuration for Supervisor
-│   ├── .env                       # Environment variables file for cluster configuration
-│   └── docker-compose.yml         # Docker Compose file for orchestrating the cluster
-└── scripts
-    └── pdf
-        ├── delete.py              # Script with the Deleter class for removing PDFs from the database
-        ├── load.py                # Script with the Loader class for retrieving PDFs from the database to a local folder
-        ├── store_pdf.py           # Module with functions to upload, retrieve, delete, and get the size of PDF files
-        └── upload.py              # Script to upload PDF files from the local filesystem into the database
+│   ├── config-server/
+│   │   ├── Dockerfile             # Dockerfile for config server container
+│   │   ├── configsvr.conf         # mongod config for config server mode
+│   │   ├── entrypoint.sh          # Init & startup logic for config servers
+│   │   └── keyfile                # Shared keyfile for internal cluster auth
+│   ├── mongos/
+│   │   ├── Dockerfile             # Dockerfile for mongos router
+│   │   ├── entrypoint.sh          # Script that waits for PRIMARY and registers shards
+│   │   ├── keyfile                # Shared keyfile for mongos
+│   │   └── mongos.conf            # mongos router config
+│   ├── nginx/
+│   │   └── nginx.conf             # NGINX config for load balancing mongos
+│   ├── shard/
+│   │   ├── Dockerfile             # Dockerfile for a shard replica set container
+│   │   ├── entrypoint.sh          # Entrypoint running Supervisor and multiple mongod nodes
+│   │   ├── init-shard.sh          # Initializes shard replica sets and users
+│   │   ├── keyfile                # Shared keyfile for shard replica set auth
+│   │   ├── mongod1.conf.template  # mongod config for first node
+│   │   ├── mongod2.conf.template  # mongod config for second node
+│   │   ├── mongod3.conf.template  # mongod config for third node
+│   │   └── supervisord.conf.template # Supervisor configuration for managing mongod processes
+│   ├── .env                       # Environment variables for all cluster components
+│   └── docker-compose.yml         # Docker Compose orchestration
+├── scripts
+│   ├── files/
+│   │   └── pdf/
+│   │       ├── RUR_Rossumovi_Universalni_Roboty.pdf
+│   │       ├── zadání 1W.pdf
+│   │       ├── zadání 2.pdf
+│   │       └── zadání 3 (1).pdf
+│   ├── pdf/
+│   │   ├── __pycache__/
+│   │   │   └── store_pdf.cpython-311.pyc
+│   │   ├── installed              # Marker file for installed dependencies
+│   │   ├── delete.py              # Delete PDF files from DB by filename or ID
+│   │   ├── load.py                # Download PDF files from DB to local directory
+│   │   ├── store_pdf.py           # Core logic: upload, retrieve, delete, GridFS support
+│   │   └── upload.py              # Upload local PDF files to MongoDB
+│   └── .env                       # MongoDB credentials and DB config for scripts
+├── .gitignore
+└── README.md
 ```
 
 ---
 
-## Key Components
+## 🧩 Key Components
 
-### MongoDB Cluster (mongodb_cluster)
+### 🔗 MongoDB Cluster
 
-- **Config Servers (config-server):**  
-  These run `mongod` in config server mode. They include a Dockerfile, a configuration file (`configsvr.conf`), and an entrypoint script (`entrypoint.sh`) to initialize the replica set.
+- **Config Servers (`config-server`)**  
+  Hosts the `mongod` config servers with replica set initialization and authorization. Uses a shared keyfile for cluster internal authentication.
 
-- **Mongos (mongos):**  
-  This is the query router for the sharded cluster. It includes a Dockerfile, a configuration file (`mongos.conf`), and an entrypoint script (`entrypoint.sh`) for starting mongos and registering shards.
+- **Shards (`shard`)**  
+  Each shard runs as a 3-node replica set (mongod1, mongod2, mongod3), initialized and supervised via Supervisor and `init-shard.sh`.
 
-- **Shards (shard):**  
-  Each shard consists of a replica set with three `mongod` instances. The shard folder contains Dockerfile, an entrypoint script (which uses Supervisor to manage the processes), a shard initialization script (`init-shard.sh`), and template configuration files for the individual mongod instances and Supervisor.
+- **Query Routers (`mongos`)**  
+  `mongos` processes connect to all config servers and route queries to appropriate shards. Each instance registers shards dynamically once the config replica set is initialized.
 
-- **.env and docker-compose.yml:**  
-  These files define environment variables and orchestrate all services (config servers, shards, and mongos) respectively.
-
-### Files (files/pdf)
-
-Contains sample PDF files used for testing the upload, load, and deletion operations via Python scripts.
-
-### Python Scripts (scripts/pdf)
-
-- **store_pdf.py:**  
-  Contains functions for uploading PDF files to the database (either as Base64-encoded documents in the `pdf` collection or using GridFS for large files), retrieving files, deleting files, and getting file sizes.
-
-- **upload.py:**  
-  Imports functions from `store_pdf.py` and uploads PDF files from the local filesystem into the database.
-
-- **load.py:**  
-  Implements a Loader class that retrieves PDF files by filename from the database and saves them to a local directory (e.g., `loaded`).
-
-- **delete.py:**  
-  Implements a Deleter class that removes PDF files from the database by filename or _id.
+- **NGINX Load Balancer (`nginx`)**  
+  Balances requests between multiple `mongos` routers. Configuration can be extended to enable external connections via a single point of access (e.g., `localhost:8080` → mongos1/mongos2).
 
 ---
 
-## How to Use
+# 🔐 Authorization and Security
 
-### Running the Cluster
+This MongoDB sharded cluster employs internal **keyfile-based authentication**, ensuring secure communication between cluster components (Config Servers, Shards, and Mongos routers). Additionally, an admin user is created automatically upon initial setup for external access.
 
-1. Navigate to the `mongodb_cluster` directory.
-2. Run Docker Compose to start the entire cluster:
-   ```bash
-   docker-compose up
-   ```
+## Keyfile Authentication
 
-This command will launch the config servers, shard replica sets, and the mongos router.
+- Each component (Config Servers, Shards, Mongos) contains a shared secret file (`keyfile`) located in their respective directories.
+- Permissions on `keyfile` are set to `400` (read-only by owner) to satisfy MongoDB security requirements.
 
-### Managing PDF Files
+## User Authentication
 
-- **Uploading Files:**  
-  Run the upload script to insert PDFs from the local filesystem into the database:
+- An **admin user** is automatically created with the credentials defined in the `.env` file (`MONGO_INITDB_ROOT_USERNAME` and `MONGO_INITDB_ROOT_PASSWORD`).
+- External users and Python scripts must authenticate using these credentials.
+- Authorization database: `admin`.
+
+---
+
+# 🐳 Docker Compose Setup
+
+The entire cluster setup is orchestrated by the provided `docker-compose.yml`. It deploys:
+
+- **3 Config Servers**: A single replica set (`configReplSet`).
+- **3 Shards**: Each shard is a replica set of three `mongod` nodes (shard1, shard2, shard3).
+- **2 Mongos Routers**: Automatically detect and connect to the config servers and register shards.
+- **1 NGINX Load Balancer**: Distributes requests between mongos routers on port `27080`.
+
+### Ports Overview (Exposed on localhost):
+
+| Service        | Ports Exposed                   |
+|----------------|---------------------------------|
+| Config Servers | `27019`, `27020`, `27021`       |
+| Shards         | Ports ranging from `27100-27302`|
+| Mongos         | Default MongoDB port `27017` (internal) |
+| **NGINX**      | **`27080`** (Load Balancer)     |
+
+### Starting the Cluster
+
+```bash
+cd mongodb_cluster
+docker-compose up --build
+```
+
+---
+
+# 🌐 NGINX Load Balancer (Port 27080)
+
+NGINX acts as the primary entry point to your sharded MongoDB cluster by balancing queries between multiple Mongos instances. 
+
+**Connection URI:**
+
+```bash
+mongodb://<MONGO_INITDB_ROOT_USERNAME>:<MONGO_INITDB_ROOT_PASSWORD>@localhost:27080/?authSource=admin
+```
+
+**Example:**  
+```bash
+mongodb://admin:password123@localhost:27080/?authSource=admin
+```
+
+Replace `admin` and `password123` with the actual credentials you've specified in your `.env` file.
+
+---
+
+## 🐍 PDF Management via Python Scripts
+
+The Python scripts allow upload, retrieval, and deletion of PDF files from the `main.pdf` collection.
+
+### Storage Behavior
+- PDFs ≤ 16 MB: stored directly as base64-encoded documents.
+- PDFs > 16 MB: stored using GridFS.
+
+### 🛠 Usage
+
+> From the project root, run the following commands:
+
+- **Upload Files**
   ```bash
   python scripts/pdf/upload.py
   ```
 
-- **Loading (Retrieving) Files:**  
-  Run the load script to retrieve files by name and save them to a local folder (e.g., `loaded`):
+- **Download Files**
   ```bash
   python scripts/pdf/load.py
   ```
 
-- **Deleting Files:**  
-  Run the delete script to remove files from the database:
+- **Delete Files**
   ```bash
   python scripts/pdf/delete.py
   ```
 
-Files smaller than or equal to 16 MB are stored as Base64-encoded documents in the `pdf` collection of the `main` database. Larger files are stored using GridFS.
+Configure connection details via `scripts/.env`.
 
 ---
 
-## Notes
+## ✅ Notes
 
-- This version does not yet include detailed authentication documentation (the current stable version is uploaded to GitHub without those details).
-- The Python scripts in the `scripts/pdf` folder provide functionality to upload, retrieve, and delete PDF files in the `main` database.
+- Keyfiles are used for internal authentication between nodes.
+- Authorization is enabled — only users created during initialization can access the cluster.
+- `mongos` does not store data — it acts as a router only.
+- NGINX can be further configured to add SSL/TLS termination, rate limiting, etc.
 
----
+Here's the updated `README.md` that provides detailed information about authorization, updated Docker Compose details, and NGINX with the correct port `27080`:
+

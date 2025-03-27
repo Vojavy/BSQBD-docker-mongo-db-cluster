@@ -1,63 +1,112 @@
 #!/bin/bash
 set -e
 
-echo "Запускаем mongos с конфигурационным файлом..."
+CONFIG_SERVERS=("configsvr1" "configsvr2" "configsvr3")
+PRIMARY_HOST=""
+
+echo "🔍 Ищем PRIMARY среди config-серверов..."
+
+wait_for_primary() {
+  while true; do
+    for host in "${CONFIG_SERVERS[@]}"; do
+      echo "🔎 Проверяем $host:27019..."
+
+      # Сначала проверяем, слушает ли вообще порт (mongod запущен)
+      if ! nc -z "$host" 27019; then
+        echo "❌ $host:27019 недоступен. Пропускаем..."
+        continue
+      fi
+
+      # Пытаемся подключиться к mongod и проверить, является ли он PRIMARY
+      is_primary=$(mongosh --host "$host" --port 27019 \
+        --quiet \
+        -u "$MONGO_INITDB_ROOT_USERNAME" \
+        -p "$MONGO_INITDB_ROOT_PASSWORD" \
+        --authenticationDatabase admin \
+        --eval "try { rs.isMaster().ismaster } catch(e) { false }" 2>/dev/null || echo "false")
+
+      if [ "$is_primary" == "true" ]; then
+        PRIMARY_HOST="$host"
+        echo "✅ Найден PRIMARY: $PRIMARY_HOST"
+        return
+      fi
+    done
+
+    echo "❌ PRIMARY не найден. Ждем 5 секунд и пробуем снова..."
+    sleep 5
+  done
+}
+
+wait_for_primary
+
+echo "Проверяем доступность admin-пользователя..."
+until mongosh --host "$PRIMARY_HOST" --port 27019 \
+  -u "$MONGO_INITDB_ROOT_USERNAME" \
+  -p "$MONGO_INITDB_ROOT_PASSWORD" \
+  --authenticationDatabase admin --quiet \
+  --eval "db.adminCommand('ping')" | grep -q "ok"; do
+  echo "Ждем, пока admin-пользователь станет доступен..."
+  sleep 5
+done
+echo "Admin-пользователь доступен."
+
+echo "🚀 Запускаем mongos с конфигурационным файлом..."
 mongos --config /etc/mongos.conf &
 MONGOS_PID=$!
 
-echo "Ожидание, пока mongos начнет прослушивать порт 27017..."
-while ! nc -z localhost 27017; do
-  echo "mongos ещё не готов, ждем..."
+echo "⏳ Ждем, пока mongos начнет слушать порт 27017..."
+until nc -z localhost 27017; do 
   sleep 2
 done
+echo "✅ mongos запущен."
 
-echo "mongos запущен. Начинаем регистрацию шардов..."
+if [ "$REGISTER_SHARDS" == "true" ]; then
+  echo "🔧 Режим регистрации шардов включен."
 
-# Определяем требуемые шарды
-REQUIRED_SHARDS=("shard1" "shard2" "shard3")
+  REQUIRED_SHARDS=("${SHARD1_NAME}" "${SHARD2_NAME}" "${SHARD3_NAME}")
 
-# Функция для добавления конкретного шарда
-add_shard() {
-  shard=$1
-  if [ "$shard" == "shard1" ]; then
-    echo "Добавляем shard1..."
-    mongosh --quiet --port 27017 --eval "sh.addShard('shard1/shard1:27100,shard1:27101,shard1:27102')"
-  elif [ "$shard" == "shard2" ]; then
-    echo "Добавляем shard2..."
-    mongosh --quiet --port 27017 --eval "sh.addShard('shard2/shard2:27100,shard2:27101,shard2:27102')"
-  elif [ "$shard" == "shard3" ]; then
-    echo "Добавляем shard3..."
-    mongosh --quiet --port 27017 --eval "sh.addShard('shard3/shard3:27100,shard3:27101,shard3:27102')"
-  fi
-}
+  add_shard() {
+    shard=$1
+    shard_hosts="$shard:27100,$shard:27101,$shard:27102"
+    echo "➕ Добавляем shard '$shard' с хостами: $shard_hosts"
+    mongosh --quiet --port 27017 \
+      -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" \
+      --authenticationDatabase admin \
+      --eval "sh.addShard('$shard/$shard_hosts')"
+  }
 
-# Основной цикл проверки регистрации шардов
-while true; do
-  echo "Проверка зарегистрированных шардов..."
-  # Получаем список shard-идентификаторов как строку, разделённую запятыми
-  CURRENT_SHARDS=$(mongosh --quiet --port 27017 --eval "var s=db.adminCommand({listShards:1}).shards.map(function(x){return x._id;}); print(s.join(','));")
-  echo "Текущие шарды: $CURRENT_SHARDS"
-  
-  missing=()
-  for shard in "${REQUIRED_SHARDS[@]}"; do
-    if ! echo "$CURRENT_SHARDS" | grep -q "$shard"; then
-      missing+=("$shard")
+  while true; do
+    echo "🔍 Проверяем зарегистрированные шарды..."
+    CURRENT_SHARDS=$(mongosh --quiet --port 27017 \
+      -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" \
+      --authenticationDatabase admin \
+      --eval "try { db.adminCommand({listShards:1}).shards.map(x => x._id).join(',') } catch(e) { '' }")
+
+    echo "✅ Текущие шарды: $CURRENT_SHARDS"
+    
+    missing=()
+    for shard in "${REQUIRED_SHARDS[@]}"; do
+      if ! echo "$CURRENT_SHARDS" | grep -qw "$shard"; then
+        missing+=("$shard")
+      fi
+    done
+
+    if [ ${#missing[@]} -eq 0 ]; then
+      echo "🎉 Все шарды успешно зарегистрированы."
+      break
     fi
+
+    echo "➕ Отсутствуют шарды: ${missing[*]}. Добавляем их..."
+    for shard in "${missing[@]}"; do
+      add_shard "$shard"
+    done
+
+    echo "🔄 Ждем 10 секунд перед повторной проверкой..."
+    sleep 10
   done
+else
+  echo "ℹ️ REGISTER_SHARDS не установлен в true. Пропускаем регистрацию шардов."
+fi
 
-  if [ ${#missing[@]} -eq 0 ]; then
-    echo "Все шарды зарегистрированы."
-    break
-  fi
-
-  echo "Отсутствуют шарды: ${missing[*]}. Пытаемся добавить их..."
-  for shard in "${missing[@]}"; do
-    add_shard "$shard"
-  done
-  
-  echo "Ожидание 10 секунд перед повторной проверкой..."
-  sleep 10
-done
-
-echo "Инициализация шардов завершена. Mongos запущен."
+echo "🟢 Mongos полностью готов к работе."
 wait $MONGOS_PID

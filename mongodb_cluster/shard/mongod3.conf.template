@@ -12,3 +12,6 @@ replication:
   replSetName: ${REPLICA_SET_NAME}
 sharding:
   clusterRole: shardsvr
+security:
+  keyFile: /data/keyfile
+  authorization: enabled

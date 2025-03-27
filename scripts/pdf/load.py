@@ -4,20 +4,17 @@ from pymongo import MongoClient
 from bson import ObjectId
 from gridfs import GridFS
 from store_pdf import get_pdf_file
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class Loader:
     def __init__(self, db):
         self.db = db
 
     def load_by_name(self, doc_name, output_dir):
-        """
-        Ищет PDF-файл по имени (filename) и сохраняет в папку output_dir.
-        Если файл хранится в коллекции 'pdf', извлекается как document.
-        Если файл хранится в GridFS, извлекается через gridfs.
-        """
         os.makedirs(output_dir, exist_ok=True)
 
-        # 1) Проверяем коллекцию 'pdf'
         doc = self.db.pdf.find_one({"filename": doc_name})
         if doc:
             doc_id = doc["_id"]
@@ -27,7 +24,6 @@ class Loader:
             print(f"Файл '{doc_name}' сохранён в '{out_path}'.")
             return
 
-        # 2) Проверяем GridFS (fs.files) по filename
         fs = GridFS(self.db)
         file_info = self.db.fs.files.find_one({"filename": doc_name})
         if file_info:
@@ -41,13 +37,12 @@ class Loader:
         print(f"Файл '{doc_name}' не найден ни в 'pdf', ни в GridFS.")
 
 def main():
-    # Получаем путь к текущему скрипту (load.py)
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    # Определяем папку для сохранения, расположенную рядом со скриптом
     output_dir = os.path.join(script_dir, "installed")
 
-    client = MongoClient("mongodb://localhost:27017")
-    db = client.main
+    db_uri = os.getenv("MONGO_URI")
+    client = MongoClient(db_uri)
+    db = client.get_database("main")
 
     loader = Loader(db)
     files_to_load = [

@@ -1,9 +1,9 @@
 version: "3.8"
 services:
   configsvr1:
-    build: 
-      context: ./config-server
+    build: ./config-server
     container_name: configsvr1
+    env_file: .env
     environment:
       - REPLICA_SET_NAME=configReplSet
       - INIT_CONFIG=true
@@ -13,34 +13,31 @@ services:
       - ./data/configsvr1:/data/configdb
 
   configsvr2:
-    build: 
-      context: ./config-server
+    build: ./config-server
     container_name: configsvr2
+    env_file: .env
     environment:
       - REPLICA_SET_NAME=configReplSet
-      - INIT_CONFIG=false
     ports:
       - "27020:27019"
     volumes:
       - ./data/configsvr2:/data/configdb
 
   configsvr3:
-    build: 
-      context: ./config-server
+    build: ./config-server
     container_name: configsvr3
+    env_file: .env
     environment:
       - REPLICA_SET_NAME=configReplSet
-      - INIT_CONFIG=false
     ports:
       - "27021:27019"
     volumes:
       - ./data/configsvr3:/data/configdb
 
-
   shard1:
-    build: 
-      context: ./shard
+    build: ./shard
     container_name: shard1
+    env_file: .env
     environment:
       - REPLICA_SET_NAME=shard1
     ports:
@@ -53,9 +50,9 @@ services:
       - ./data/shard1_db3:/data/db3
 
   shard2:
-    build: 
-      context: ./shard
+    build: ./shard
     container_name: shard2
+    env_file: .env
     environment:
       - REPLICA_SET_NAME=shard2
     ports:
@@ -68,9 +65,9 @@ services:
       - ./data/shard2_db3:/data/db3
 
   shard3:
-    build: 
-      context: ./shard
+    build: ./shard
     container_name: shard3
+    env_file: .env
     environment:
       - REPLICA_SET_NAME=shard3
     ports:
@@ -82,13 +79,12 @@ services:
       - ./data/shard3_db2:/data/db2
       - ./data/shard3_db3:/data/db3
 
-
-  mongos:
-    build: 
-      context: ./mongos
-    container_name: mongos
+  mongos1:
+    build: ./mongos
+    container_name: mongos1
+    env_file: .env
     environment:
-      - CONFIG_REPL_SET=configReplSet
+      - REGISTER_SHARDS=true  # для первого mongos
     ports:
       - "27017:27017"
     depends_on:
@@ -98,3 +94,28 @@ services:
       - shard1
       - shard2
       - shard3
+
+  mongos2:
+    build: ./mongos
+    container_name: mongos2
+    env_file: .env
+    ports:
+      - "27018:27017"
+    depends_on:
+      - configsvr1
+      - configsvr2
+      - configsvr3
+      - shard1
+      - shard2
+      - shard3
+
+  nginx:
+    image: nginx:alpine
+    container_name: mongos-loadbalancer
+    ports:
+      - "27080:27080"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - mongos1
+      - mongos2
