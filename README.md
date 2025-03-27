@@ -1,6 +1,6 @@
-# NoSQL Cluster Project
+# 📚 MongoDB Sharded Cluster Project
 
-This project demonstrates a fully sharded MongoDB cluster setup with secure internal authentication, routing through `mongos`, and load balancing via NGINX. It also includes Python scripts for managing PDF files in MongoDB (via base64 documents or GridFS).
+This project demonstrates a comprehensive sharded MongoDB cluster setup, including secured internal authentication, dynamic routing through multiple `mongos` routers, and load balancing with NGINX. It includes automated data initialization with validation schemas, multiple sample datasets, Python scripts for dataset management, and a JupyterLab notebook for data analysis and visualization.
 
 ---
 
@@ -8,106 +8,105 @@ This project demonstrates a fully sharded MongoDB cluster setup with secure inte
 
 ```
 noSQL/
+├── Data
+│   ├── files
+│   │   └── data-sets
+│   │       ├── Indian_Traffic_Violations.csv
+│   │       ├── Mastercard_stock_history.csv
+│   │       └── Netflix_films.csv
+│   └── scripts
+│       ├── .env
+│       ├── data_analysis_notebook.ipynb
+│       ├── upload_indian_traffic.py
+│       ├── upload_mastercard_stock.py
+│       └── upload_netflix_films.py
+├── Queries
+│   ├── cards.txt
+│   ├── indians.txt
+│   └── netflix.txt
 ├── mongodb_cluster
-│   ├── config-server/
-│   │   ├── Dockerfile             # Dockerfile for config server container
-│   │   ├── configsvr.conf         # mongod config for config server mode
-│   │   ├── entrypoint.sh          # Init & startup logic for config servers
-│   │   └── keyfile                # Shared keyfile for internal cluster auth
-│   ├── mongos/
-│   │   ├── Dockerfile             # Dockerfile for mongos router
-│   │   ├── entrypoint.sh          # Script that waits for PRIMARY and registers shards
-│   │   ├── keyfile                # Shared keyfile for mongos
-│   │   └── mongos.conf            # mongos router config
-│   ├── nginx/
-│   │   └── nginx.conf             # NGINX config for load balancing mongos
-│   ├── shard/
-│   │   ├── Dockerfile             # Dockerfile for a shard replica set container
-│   │   ├── entrypoint.sh          # Entrypoint running Supervisor and multiple mongod nodes
-│   │   ├── init-shard.sh          # Initializes shard replica sets and users
-│   │   ├── keyfile                # Shared keyfile for shard replica set auth
-│   │   ├── mongod1.conf.template  # mongod config for first node
-│   │   ├── mongod2.conf.template  # mongod config for second node
-│   │   ├── mongod3.conf.template  # mongod config for third node
-│   │   └── supervisord.conf.template # Supervisor configuration for managing mongod processes
-│   ├── .env                       # Environment variables for all cluster components
-│   └── docker-compose.yml         # Docker Compose orchestration
-├── scripts
-│   ├── files/
-│   │   └── pdf/
-│   │       ├── RUR_Rossumovi_Universalni_Roboty.pdf
-│   │       ├── zadání 1W.pdf
-│   │       ├── zadání 2.pdf
-│   │       └── zadání 3 (1).pdf
-│   ├── pdf/
-│   │   ├── __pycache__/
-│   │   │   └── store_pdf.cpython-311.pyc
-│   │   ├── installed              # Marker file for installed dependencies
-│   │   ├── delete.py              # Delete PDF files from DB by filename or ID
-│   │   ├── load.py                # Download PDF files from DB to local directory
-│   │   ├── store_pdf.py           # Core logic: upload, retrieve, delete, GridFS support
-│   │   └── upload.py              # Upload local PDF files to MongoDB
-│   └── .env                       # MongoDB credentials and DB config for scripts
+│   ├── config-server
+│   │   ├── Dockerfile
+│   │   ├── configsvr.conf
+│   │   ├── entrypoint.sh
+│   │   └── keyfile
+│   ├── mongos
+│   │   ├── Dockerfile
+│   │   ├── entrypoint.sh
+│   │   ├── keyfile
+│   │   ├── mongos.conf
+│   │   └── schema-collections-init.sh
+│   ├── nginx
+│   │   └── nginx.conf
+│   ├── shard
+│   │   ├── Dockerfile
+│   │   ├── entrypoint.sh
+│   │   ├── init-shard.sh
+│   │   ├── keyfile
+│   │   ├── mongod1.conf.template
+│   │   ├── mongod2.conf.template
+│   │   ├── mongod3.conf.template
+│   │   └── supervisord.conf.template
+│   ├── .env
+│   └── docker-compose.yml
 ├── .gitignore
 └── README.md
 ```
 
 ---
 
-## 🧩 Key Components
+## 🚀 Key Components and Architecture
 
-### 🔗 MongoDB Cluster
+### 🔗 MongoDB Cluster Structure
+
+The cluster includes:
 
 - **Config Servers (`config-server`)**  
-  Hosts the `mongod` config servers with replica set initialization and authorization. Uses a shared keyfile for cluster internal authentication.
+  Three-node replica set (`configReplSet`) responsible for storing metadata about shards and clusters.
 
 - **Shards (`shard`)**  
-  Each shard runs as a 3-node replica set (mongod1, mongod2, mongod3), initialized and supervised via Supervisor and `init-shard.sh`.
+  Three individual replica sets (shard1, shard2, shard3), each running three MongoDB nodes managed by Supervisor. They store and distribute actual data.
 
 - **Query Routers (`mongos`)**  
-  `mongos` processes connect to all config servers and route queries to appropriate shards. Each instance registers shards dynamically once the config replica set is initialized.
+  Two mongos routers automatically detect and register shard clusters, routing client queries accordingly.
 
 - **NGINX Load Balancer (`nginx`)**  
-  Balances requests between multiple `mongos` routers. Configuration can be extended to enable external connections via a single point of access (e.g., `localhost:27080` → mongos1/mongos2).
+  Balances client connections across available mongos instances, accessible externally on port `27080`.
 
 ---
 
-# 🔐 Authorization and Security
+## 🔐 Security and Authentication
 
-This MongoDB sharded cluster employs internal **keyfile-based authentication**, ensuring secure communication between cluster components (Config Servers, Shards, and Mongos routers). Additionally, an admin user is created automatically upon initial setup for external access.
+The project implements MongoDB's internal authentication using shared keyfiles. It also creates an administrative user for external access.
 
-## Keyfile Authentication
+### Keyfile-Based Authentication
 
-- Each component (Config Servers, Shards, Mongos) contains a shared secret file (`keyfile`) located in their respective directories.
-- Permissions on `keyfile` are set to `400` (read-only by owner) to satisfy MongoDB security requirements.
+- Shared `keyfile` securely distributed across cluster components (`config-server`, `shard`, `mongos`).
+- Permissions strictly set to `400`.
 
-## User Authentication
+### Admin User Authentication
 
-- An **admin user** is automatically created with the credentials defined in the `.env` file (`MONGO_INITDB_ROOT_USERNAME` and `MONGO_INITDB_ROOT_PASSWORD`).
-- External users and Python scripts must authenticate using these credentials.
-- Authorization database: `admin`.
+- Credentials stored in `.env` file (`MONGO_INITDB_ROOT_USERNAME`, `MONGO_INITDB_ROOT_PASSWORD`).
+- Authenticated via MongoDB's `admin` database.
 
 ---
 
-# 🐳 Docker Compose Setup
+## 🐳 Docker Compose Setup
 
-The entire cluster setup is orchestrated by the provided `docker-compose.yml`. It deploys:
+The Docker Compose configuration deploys:
 
-- **3 Config Servers**: A single replica set (`configReplSet`).
-- **3 Shards**: Each shard is a replica set of three `mongod` nodes (shard1, shard2, shard3).
-- **2 Mongos Routers**: Automatically detect and connect to the config servers and register shards.
-- **1 NGINX Load Balancer**: Distributes requests between mongos routers on port `27080`.
+- **Config Servers**: `configsvr1`, `configsvr2`, `configsvr3`  
+  Ports: `27019`, `27020`, `27021`
 
-### Ports Overview (Exposed on localhost):
+- **Shards**: Three replica sets (`shard1`, `shard2`, `shard3`)  
+  Ports: `27100-27302`
 
-| Service        | Ports Exposed                   |
-|----------------|---------------------------------|
-| Config Servers | `27019`, `27020`, `27021`       |
-| Shards         | Ports ranging from `27100-27302`|
-| Mongos         | Default MongoDB port `27017` (internal) |
-| **NGINX**      | **`27080`** (Load Balancer)     |
+- **Mongos Routers**: Two instances (`mongos1`, `mongos2`)  
+  Internal Port: `27017` and externally load balanced via NGINX on port `27080`
 
-### Starting the Cluster
+### 🔧 Running the Cluster
+
+To build and run the entire cluster:
 
 ```bash
 cd mongodb_cluster
@@ -116,59 +115,90 @@ docker-compose up --build
 
 ---
 
-# 🌐 NGINX Load Balancer (Port 27080)
+## 🌐 Connecting Through NGINX (Load Balancer)
 
-NGINX acts as the primary entry point to your sharded MongoDB cluster by balancing queries between multiple Mongos instances. 
+Clients and applications connect through NGINX on port `27080`.
 
-**Connection URI:**
+**Connection String:**
 
 ```bash
 mongodb://<MONGO_INITDB_ROOT_USERNAME>:<MONGO_INITDB_ROOT_PASSWORD>@localhost:27080/?authSource=admin
 ```
 
-**Example:**  
+Example:
+
 ```bash
-mongodb://admin:password123@localhost:27080/?authSource=admin
+mongodb://admin:YourStrongPassword@localhost:27080/?authSource=admin
 ```
 
-Replace `admin` and `password123` with the actual credentials you've specified in your `.env` file.
+---
+
+## 📂 Datasets and Validation Schemas
+
+Three datasets have been integrated with appropriate MongoDB JSON schema validation:
+
+- 📺 **Netflix films**  
+- 🚦 **Indian traffic violations**  
+- 📈 **Mastercard stock prices**
+
+The datasets are located in the `Data/files/data-sets` directory, and can be loaded into MongoDB using provided Python scripts.
 
 ---
 
-## 🐍 PDF Management via Python Scripts
+## 🐍 Python Scripts for Data Upload
 
-The Python scripts allow upload, retrieval, and deletion of PDF files from the `main.pdf` collection.
+The scripts to upload datasets are located under `Data/scripts`:
 
-### Storage Behavior
-- PDFs ≤ 16 MB: stored directly as base64-encoded documents.
-- PDFs > 16 MB: stored using GridFS.
+```bash
+python upload_netflix_films.py
+python upload_indian_traffic.py
+python upload_mastercard_stock.py
+```
 
-### 🛠 Usage
-
-> From the project root, run the following commands:
-
-- **Upload Files**
-  ```bash
-  python scripts/pdf/upload.py
-  ```
-
-- **Download Files**
-  ```bash
-  python scripts/pdf/load.py
-  ```
-
-- **Delete Files**
-  ```bash
-  python scripts/pdf/delete.py
-  ```
-
-Configure connection details via `scripts/.env`.
+Ensure MongoDB credentials are configured in `Data/scripts/.env`.
 
 ---
 
-## ✅ Notes
+## 📊 Data Analysis Notebook (JupyterLab)
 
-- Keyfiles are used for internal authentication between nodes.
-- Authorization is enabled — only users created during initialization can access the cluster.
-- `mongos` does not store data — it acts as a router only.
-- NGINX can be further configured to add SSL/TLS termination, rate limiting, etc.
+The provided Jupyter Notebook (`data_analysis_notebook.ipynb`) offers exploratory data analysis and visualization of the three datasets.
+
+### 🚀 Setup JupyterLab Environment
+
+Install required packages:
+
+```bash
+pip install jupyterlab pymongo pandas matplotlib seaborn
+```
+
+Launch JupyterLab:
+
+```bash
+jupyter lab
+```
+
+Run the notebook (`data_analysis_notebook.ipynb`) to view and interact with data analyses and visualizations.
+
+---
+
+## 📜 Queries (MongoDB Aggregations & Operations)
+
+Prepared complex queries covering filtering, aggregation, updating, deleting, indexing, and optimization are stored in:
+
+- 📺 Netflix queries (`Queries/netflix.txt`)
+- 🚦 Indian traffic queries (`Queries/indians.txt`)
+- 📈 Mastercard queries (`Queries/cards.txt`)
+
+---
+
+## 📌 Additional Information & Recommendations
+
+- The entire solution is fully containerized, making it platform-independent.
+- NGINX configuration can be expanded to add security layers (SSL/TLS).
+- Data persistence is managed through Docker volumes.
+
+---
+
+## ✅ Conclusion
+
+This MongoDB cluster setup demonstrates robust NoSQL practices, including sharding, replication, high availability, data validation, and secured communication between cluster nodes. It supports extensive data operations, automated scripts, detailed analytics, and visualizations.
