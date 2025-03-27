@@ -68,7 +68,7 @@ noSQL/
   `mongos` processes connect to all config servers and route queries to appropriate shards. Each instance registers shards dynamically once the config replica set is initialized.
 
 - **NGINX Load Balancer (`nginx`)**  
-  Balances requests between multiple `mongos` routers. Configuration can be extended to enable external connections via a single point of access (e.g., `localhost:8080` → mongos1/mongos2).
+  Balances requests between multiple `mongos` routers. Configuration can be extended to enable external connections via a single point of access (e.g., `localhost:27080` → mongos1/mongos2).
 
 ---
 
@@ -172,6 +172,3 @@ Configure connection details via `scripts/.env`.
 - Authorization is enabled — only users created during initialization can access the cluster.
 - `mongos` does not store data — it acts as a router only.
 - NGINX can be further configured to add SSL/TLS termination, rate limiting, etc.
-
-Here's the updated `README.md` that provides detailed information about authorization, updated Docker Compose details, and NGINX with the correct port `27080`:
-
