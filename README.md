@@ -68,7 +68,7 @@ noSQL/
   `mongos` processes connect to all config servers and route queries to appropriate shards. Each instance registers shards dynamically once the config replica set is initialized.
 
 - **NGINX Load Balancer (`nginx`)**  
-  Balances requests between multiple `mongos` routers. Configuration can be extended to enable external connections via a single point of access (e.g., `localhost:8080` → mongos1/mongos2).
+  Balances requests between multiple `mongos` routers. Configuration can be extended to enable external connections via a single point of access (e.g., `localhost:27080` → mongos1/mongos2).
 
 ---
 
