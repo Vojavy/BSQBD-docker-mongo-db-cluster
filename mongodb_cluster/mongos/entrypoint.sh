@@ -4,20 +4,17 @@ set -e
 CONFIG_SERVERS=("configsvr1" "configsvr2" "configsvr3")
 PRIMARY_HOST=""
 
-echo "🔍 Ищем PRIMARY среди config-серверов..."
+echo "🔍 Searching for PRIMARY among config servers..."
 
 wait_for_primary() {
   while true; do
     for host in "${CONFIG_SERVERS[@]}"; do
-      echo "🔎 Проверяем $host:27019..."
-
-      # Сначала проверяем, слушает ли вообще порт (mongod запущен)
+      # Check if port is listening (mongod is running)
       if ! nc -z "$host" 27019; then
-        echo "❌ $host:27019 недоступен. Пропускаем..."
         continue
       fi
 
-      # Пытаемся подключиться к mongod и проверить, является ли он PRIMARY
+      # Attempt to connect to mongod and check if it's PRIMARY
       is_primary=$(mongosh --host "$host" --port 27019 \
         --quiet \
         -u "$MONGO_INITDB_ROOT_USERNAME" \
@@ -27,48 +24,48 @@ wait_for_primary() {
 
       if [ "$is_primary" == "true" ]; then
         PRIMARY_HOST="$host"
-        echo "✅ Найден PRIMARY: $PRIMARY_HOST"
+        echo "✅ PRIMARY found: $PRIMARY_HOST"
         return
       fi
     done
 
-    echo "❌ PRIMARY не найден. Ждем 5 секунд и пробуем снова..."
+    echo "❌ PRIMARY not found. Waiting 5 seconds before retrying..."
     sleep 5
   done
 }
 
 wait_for_primary
 
-echo "Проверяем доступность admin-пользователя..."
+echo "Checking admin user availability..."
 until mongosh --host "$PRIMARY_HOST" --port 27019 \
   -u "$MONGO_INITDB_ROOT_USERNAME" \
   -p "$MONGO_INITDB_ROOT_PASSWORD" \
   --authenticationDatabase admin --quiet \
   --eval "db.adminCommand('ping')" | grep -q "ok"; do
-  echo "Ждем, пока admin-пользователь станет доступен..."
+  echo "Waiting for admin user to become available..."
   sleep 5
 done
-echo "Admin-пользователь доступен."
+echo "Admin user is available."
 
-echo "🚀 Запускаем mongos с конфигурационным файлом..."
+echo "🚀 Launching mongos with configuration file..."
 mongos --config /etc/mongos.conf &
 MONGOS_PID=$!
 
-echo "⏳ Ждем, пока mongos начнет слушать порт 27017..."
+echo "⏳ Waiting for mongos to start listening on port 27017..."
 until nc -z localhost 27017; do 
   sleep 2
 done
-echo "✅ mongos запущен."
+echo "✅ Mongos is running."
 
 if [ "$REGISTER_SHARDS" == "true" ]; then
-  echo "🔧 Режим регистрации шардов включен."
+  echo "🔧 Shard registration mode is enabled."
 
   REQUIRED_SHARDS=("${SHARD1_NAME}" "${SHARD2_NAME}" "${SHARD3_NAME}")
 
   add_shard() {
     shard=$1
     shard_hosts="$shard:27100,$shard:27101,$shard:27102"
-    echo "➕ Добавляем shard '$shard' с хостами: $shard_hosts"
+    echo "➕ Adding shard '$shard' with hosts: $shard_hosts"
     mongosh --quiet --port 27017 \
       -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" \
       --authenticationDatabase admin \
@@ -76,13 +73,13 @@ if [ "$REGISTER_SHARDS" == "true" ]; then
   }
 
   while true; do
-    echo "🔍 Проверяем зарегистрированные шарды..."
+    echo "🔍 Checking registered shards..."
     CURRENT_SHARDS=$(mongosh --quiet --port 27017 \
       -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" \
       --authenticationDatabase admin \
       --eval "try { db.adminCommand({listShards:1}).shards.map(x => x._id).join(',') } catch(e) { '' }")
 
-    echo "✅ Текущие шарды: $CURRENT_SHARDS"
+    echo "✅ Current shards: $CURRENT_SHARDS"
     
     missing=()
     for shard in "${REQUIRED_SHARDS[@]}"; do
@@ -92,21 +89,21 @@ if [ "$REGISTER_SHARDS" == "true" ]; then
     done
 
     if [ ${#missing[@]} -eq 0 ]; then
-      echo "🎉 Все шарды успешно зарегистрированы."
+      echo "🎉 All shards successfully registered."
       break
     fi
 
-    echo "➕ Отсутствуют шарды: ${missing[*]}. Добавляем их..."
+    echo "➕ Missing shards: ${missing[*]}. Adding them..."
     for shard in "${missing[@]}"; do
       add_shard "$shard"
     done
 
-    echo "🔄 Ждем 10 секунд перед повторной проверкой..."
+    echo "🔄 Waiting 10 seconds before rechecking..."
     sleep 10
   done
 else
-  echo "ℹ️ REGISTER_SHARDS не установлен в true. Пропускаем регистрацию шардов."
+  echo "ℹ️ REGISTER_SHARDS not set to true. Skipping shard registration."
 fi
 
-echo "🟢 Mongos полностью готов к работе."
+echo "🟢 Mongos is fully operational."
 wait $MONGOS_PID

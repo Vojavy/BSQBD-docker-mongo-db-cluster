@@ -1,12 +1,12 @@
 #!/bin/bash
 set -e
 
-echo "Ждем, пока mongod на шарде запустится (порт 27100)..."
+echo "Waiting for shard mongod instance to start (port 27100)..."
 until nc -z localhost 27100; do sleep 2; done
 
 ALREADY_INITIALIZED=$(mongosh --quiet --port 27100 --eval "try { print(rs.status().ok) } catch(e) { print(0) }" || echo "0")
 if [ "$ALREADY_INITIALIZED" != "1" ]; then
-  echo "Инициализируем репликационный набор ${REPLICA_SET_NAME} и создаем пользователя..."
+  echo "Initializing replica set ${REPLICA_SET_NAME} and creating user..."
   mongosh --port 27100 <<EOF
 rs.initiate({
   _id: "${REPLICA_SET_NAME}",
@@ -23,7 +23,7 @@ db.getSiblingDB("admin").createUser({
   roles: [{ role: "root", db: "admin" }]
 });
 EOF
-  echo "Репликационный набор и пользователь созданы."
+  echo "Replica set and user successfully created."
 else
-  echo "Репликационный набор уже инициализирован."
+  echo "Replica set already initialized."
 fi

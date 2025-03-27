@@ -1,34 +1,34 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Запускаем mongod (config-сервер) без авторизации..."
+echo "🚀 Starting mongod (config server) without authorization..."
 mongod --config /etc/mongod.conf --fork --logpath /var/log/mongodb.log
 
-echo "⏳ Ждём, пока mongod начнёт слушать порт 27019..."
+echo "⏳ Waiting for mongod to listen on port 27019..."
 until nc -z localhost 27019; do
-  echo "⌛ Ожидаем localhost:27019..."
+  echo "⌛ Waiting for localhost:27019..."
   sleep 2
 done
 
 if [ "$INIT_CONFIG" == "true" ]; then
-  echo "🔍 Проверяем статус реплика-сета..."
+  echo "🔍 Checking replica set status..."
   ALREADY_INITIALIZED=$(mongosh --port 27019 --quiet --eval 'try{rs.status().ok}catch(e){print(e.codeName)}')
 
   if [ "$ALREADY_INITIALIZED" == "NotYetInitialized" ]; then
-    echo "⏳ Ждём, пока configsvr2 и configsvr3 начнут слушать порт 27019..."
+    echo "⏳ Waiting for configsvr2 and configsvr3 to start listening on port 27019..."
     until nc -z configsvr2 27019 && nc -z configsvr3 27019; do
-      echo "⌛ configsvr2 или configsvr3 ещё не готовы..."
+      echo "⌛ configsvr2 or configsvr3 not ready yet..."
       sleep 2
     done
 
-    echo "⏳ Ждём, пока configsvr2 и configsvr3 станут доступны через rs.status()..."
+    echo "⏳ Waiting for configsvr2 and configsvr3 to become available through rs.status()..."
     until mongosh --host configsvr2 --port 27019 --quiet --eval "try { rs.status() } catch(e) { false }" && \
           mongosh --host configsvr3 --port 27019 --quiet --eval "try { rs.status() } catch(e) { false }"; do
-      echo "⌛ Реплики ещё не готовы..."
+      echo "⌛ Replicas not ready yet..."
       sleep 2
     done
 
-    echo "⚙️  Инициализируем реплика-сет configReplSet..."
+    echo "⚙️ Initializing replica set 'configReplSet'..."
     mongosh --quiet --port 27019 --eval "
 rs.initiate({
   _id: 'configReplSet',
@@ -41,14 +41,14 @@ rs.initiate({
 });
 "
 
-    echo "⏳ Ждём выбора Primary..."
+    echo "⏳ Waiting for PRIMARY election..."
     until mongosh --quiet --port 27019 --eval 'rs.isMaster().ismaster' | grep -q true; do
-      echo "⌛ Primary ещё не выбран, ждём..."
+      echo "⌛ PRIMARY not elected yet, waiting..."
       sleep 3
     done
-    echo "✅ Primary выбран!"
+    echo "✅ PRIMARY elected!"
 
-    echo "🔐 Создаём admin-пользователя..."
+    echo "🔐 Creating admin user..."
     mongosh --quiet --port 27019 --eval "
 db.getSiblingDB('admin').createUser({
   user: '${MONGO_INITDB_ROOT_USERNAME}',
@@ -56,14 +56,14 @@ db.getSiblingDB('admin').createUser({
   roles: [{ role: 'root', db: 'admin' }]
 });
 "
-    echo "✅ Конфигурация и пользователь успешно созданы!"
+    echo "✅ Configuration and admin user created successfully!"
   else
-    echo "⚠️  Реплика-сет уже инициализирован (статус: $ALREADY_INITIALIZED)."
+    echo "⚠️ Replica set already initialized (status: $ALREADY_INITIALIZED)."
   fi
 fi
 
-echo "🛑 Останавливаем mongod для перезапуска с авторизацией..."
+echo "🛑 Stopping mongod to restart with authorization..."
 mongod --dbpath /data/configdb --shutdown
 
-echo "🔒 Перезапуск mongod с авторизацией..."
+echo "🔒 Restarting mongod with authorization enabled..."
 exec mongod --config /etc/mongod.conf --auth
