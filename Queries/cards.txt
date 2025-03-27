@@ -1,0 +1,114 @@
+FILTRATION 1 +
+
+db.stock_prices.aggregate([
+  {
+    $project: {
+      Date: 1,
+      Open: 1,
+      Close: 1,
+      Change: { $subtract: ["$Close", "$Open"] }
+    }
+  },
+  { $match: { Change: { $gt: 10 } } },
+  { $sort: { Change: -1 } }
+])
+
+FILTRATION 2 +
+
+const avgVolume = db.stock_prices.aggregate([
+  { $group: { _id: null, avgVol: { $avg: "$Volume" } } }
+]).toArray()[0].avgVol;
+
+db.stock_prices.find({ Volume: { $gt: avgVolume } })
+
+
+FILTRATION 3 +
+
+db.stock_prices.aggregate([
+  {
+    $match: { Dividends: { $gt: 0 } }
+  },
+  {
+    $project: {
+      Date: 1,
+      Open: 1,
+      Close: 1,
+      DropPercent: {
+        $multiply: [
+          { $divide: [{ $subtract: ["$Close", "$Open"] }, "$Open"] },
+          100
+        ]
+      }
+    }
+  },
+  {
+    $match: { DropPercent: { $lt: -2 } }
+  },
+  {
+    $sort: { DropPercent: 1 }
+  }
+])
+
+AGGREGATION 1 +
+
+db.stock_prices.aggregate([
+  {
+    $addFields: {
+      Year: { $year: "$Date" }
+    }
+  },
+  {
+    $group: {
+      _id: "$Year",
+      avgClose: { $avg: "$Close" }
+    }
+  },
+  { $sort: { _id: 1 } }
+])
+
+AGGREGATION 2 +
+
+db.stock_prices.aggregate([
+  { $match: { Stock_Splits: { $gt: 0 } } },
+  { $count: "days_with_splits" }
+])
+
+AGGREGATION 3 + 
+
+db.stock_prices.aggregate([
+  {
+    $project: {
+      Date: 1,
+      percChange: {
+        $multiply: [
+          { $divide: [{ $subtract: ["$Close", "$Open"] }, "$Open"] },
+          100
+        ]
+      }
+    }
+  },
+  { $sort: { percChange: -1 } },
+  { $limit: 5 }
+])
+
+UPDATE 1 -
+
+db.stock_prices.updateMany(
+  { Date: { $lt: new Date("2010-01-01") } },
+  { $set: { legacy_data: true } }
+)
+
+UPDATE 2 -
+
+db.stock_prices.updateMany(
+  { Dividends: { $gt: 1 } },
+  { $set: { big_dividend: true } }
+)
+
+DELETE 1 -
+
+db.stock_prices.deleteMany({ Volume: 0 })
+
+INDEX 1 -
+
+db.stock_prices.createIndex({ Date: 1, Volume: -1 })

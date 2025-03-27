@@ -106,4 +106,10 @@ else
 fi
 
 echo "🟢 Mongos is fully operational."
+
+echo "🔄 Running collections and schemas initialization..."
+/schema-collections-init.sh
+
+echo "🟢 Mongos is fully operational."
+
 wait $MONGOS_PID
