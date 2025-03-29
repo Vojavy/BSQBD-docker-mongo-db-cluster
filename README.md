@@ -59,6 +59,8 @@ noSQL/
 
 ### 🔗 MongoDB Cluster Structure
 
+![image](https://github.com/user-attachments/assets/09783ada-5bb5-4924-bc5c-80c98540dd8f)
+
 The cluster includes:
 
 - **Config Servers (`config-server`)**  
