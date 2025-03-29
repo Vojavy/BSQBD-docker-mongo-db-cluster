@@ -91,24 +91,24 @@ db.stock_prices.aggregate([
   { $limit: 5 }
 ])
 
-UPDATE 1 -
+UPDATE 1 +
 
 db.stock_prices.updateMany(
-  { Date: { $lt: new Date("2010-01-01") } },
+  { Date: { $lt: ISODate("2010-01-01") } },
   { $set: { legacy_data: true } }
 )
 
-UPDATE 2 -
+UPDATE 2 +
 
 db.stock_prices.updateMany(
-  { Dividends: { $gt: 1 } },
+  { Dividends: { $gt: 0.2 } },
   { $set: { big_dividend: true } }
 )
 
-DELETE 1 -
+DELETE 1 +
 
-db.stock_prices.deleteMany({ Volume: 0 })
+db.stock_prices.deleteMany({ Volume: { $lt: 1000000 } })
 
-INDEX 1 -
+INDEX 1 +
 
 db.stock_prices.createIndex({ Date: 1, Volume: -1 })

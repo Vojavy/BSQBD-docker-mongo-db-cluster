@@ -64,21 +64,25 @@ db.netflix.aggregate([
   { $project: { genre: "$_id", actors_count: { $size: "$unique_actors" }, _id: 0 } }
 ])
 
-UPDATE 1 -
+UPDATE 1 +
 
 db.netflix.updateMany(
-  { type: "TV Show", rating: "TV-14", date_added: { $lt: new Date("2019-01-01") } },
+  {
+    type: "TV Show",
+    rating: "TV-14",
+    date_added: { $lt: ISODate("2019-01-01") }
+  },
   { $set: { rating: "Teen" } }
 )
 
-UPDATE 2 -
+UPDATE 2 +
 
 db.netflix.updateMany(
   { type: "Movie", rating: "R", release_year: { $gt: 2020 } },
   { $set: { popular: true } }
 )
 
-DELETE 1 -
+DELETE 1 +
 
 db.netflix.deleteMany({
   type: "TV Show",
@@ -86,7 +90,7 @@ db.netflix.deleteMany({
   rating: "TV-MA"
 })
 
-INDEX 1 -
+INDEX 1 +
 
 db.netflix.createIndex(
   { type: 1, country: 1, release_year: -1, rating: 1 },

@@ -69,35 +69,39 @@ db.Indian_Traffic_Violations.aggregate([
   { $limit: 10 }
 ])
 
-UPDATE 1 -
+UPDATE 1 +
 
 db.Indian_Traffic_Violations.updateMany(
   {
     Breathalyzer_Result: true,
-    Previous_Violations: { $gt: 5 }
+    Previous_Violations: { $gt: 2 }
   },
   { $set: { License_Validity: false } }
 )
 
-UPDATE 2 -
+UPDATE 2 +
 
 db.Indian_Traffic_Violations.updateMany(
   {
-    $expr: { $gt: ["$Recorded_Speed", { $add: ["$Speed_Limit", 100] }] },
+    $expr: {
+      $gt: [
+        "$Recorded_Speed",
+        { $add: ["$Speed_Limit", 20] }
+      ]
+    },
     Alcohol_Level: { $gt: 0.05 }
   },
   { $set: { Comments: "Severe violation" } }
 )
 
-DELETE 1 -
+DELETE 1 +
 
 db.Indian_Traffic_Violations.deleteMany({
-  Date: { $lt: new Date(new Date().setFullYear(new Date().getFullYear() - 10)) },
-  Fine_Paid: true,
-  Court_Appearance_Required: false
+  Date: { $lt: ISODate("2024-01-01") },
+  Penalty_Points: { $lt: 5 }
 })
 
-INDEX 1 -
+INDEX 1 +
 
 db.Indian_Traffic_Violations.createIndex(
   {

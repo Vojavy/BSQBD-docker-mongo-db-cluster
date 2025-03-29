@@ -24,12 +24,10 @@ wait_for_primary() {
 
       if [ "$is_primary" == "true" ]; then
         PRIMARY_HOST="$host"
-        echo "✅ PRIMARY found: $PRIMARY_HOST"
+        echo "✅ Configsvrs UP!!! PRIMARY found: $PRIMARY_HOST ✅"
         return
       fi
     done
-
-    echo "❌ PRIMARY not found. Waiting 5 seconds before retrying..."
     sleep 5
   done
 }
