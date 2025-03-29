@@ -6,8 +6,6 @@ services:
     environment:
       - REPLICA_SET_NAME=configReplSet
       - INIT_CONFIG=true
-    ports:
-      - "27019:27019"
     volumes:
       - ./data/configsvr1:/data/configdb
 
@@ -17,8 +15,6 @@ services:
     env_file: .env
     environment:
       - REPLICA_SET_NAME=configReplSet
-    ports:
-      - "27020:27019"
     volumes:
       - ./data/configsvr2:/data/configdb
 
@@ -28,8 +24,6 @@ services:
     env_file: .env
     environment:
       - REPLICA_SET_NAME=configReplSet
-    ports:
-      - "27021:27019"
     volumes:
       - ./data/configsvr3:/data/configdb
 
@@ -39,10 +33,6 @@ services:
     env_file: .env
     environment:
       - REPLICA_SET_NAME=shard1
-    ports:
-      - "27100:27100"
-      - "27101:27101"
-      - "27102:27102"
     volumes:
       - ./data/shard1_db1:/data/db1
       - ./data/shard1_db2:/data/db2
@@ -54,10 +44,6 @@ services:
     env_file: .env
     environment:
       - REPLICA_SET_NAME=shard2
-    ports:
-      - "27200:27100"
-      - "27201:27101"
-      - "27202:27102"
     volumes:
       - ./data/shard2_db1:/data/db1
       - ./data/shard2_db2:/data/db2
@@ -69,10 +55,6 @@ services:
     env_file: .env
     environment:
       - REPLICA_SET_NAME=shard3
-    ports:
-      - "27300:27100"
-      - "27301:27101"
-      - "27302:27102"
     volumes:
       - ./data/shard3_db1:/data/db1
       - ./data/shard3_db2:/data/db2
@@ -84,8 +66,6 @@ services:
     env_file: .env
     environment:
       - REGISTER_SHARDS=true  # для первого mongos
-    ports:
-      - "27017:27017"
     depends_on:
       - configsvr1
       - configsvr2
@@ -98,8 +78,6 @@ services:
     build: ./mongos
     container_name: mongos2
     env_file: .env
-    ports:
-      - "27018:27017"
     depends_on:
       - configsvr1
       - configsvr2
