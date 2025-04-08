@@ -22,12 +22,11 @@ db.netflix.find({
 }).limit(10)
 
 
-FILTRATION 3 -
+FILTRATION 3 +
 
 db.netflix.find({
   type: "Movie",
-  director: null,
-  date_added: { $gte: new Date("2023-01-01"), $lt: new Date("2024-01-01") },
+  director: "Unknown",
   release_year: { $lt: 2015 }
 }).limit(10)
 
