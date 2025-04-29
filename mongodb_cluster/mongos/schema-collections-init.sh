@@ -134,3 +134,22 @@ if (!db.getCollectionNames().includes("stock_prices")) {
 EOF
 
 echo "🎉 All collections and schemas are ready."
+
+echo "🧩 Enabling sharding and setting shard keys..."
+
+mongosh --port 27017 -u "$MONGO_INITDB_ROOT_USERNAME" \
+  -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin <<EOF
+sh.enableSharding("main");
+
+db.netflix.createIndex({ country: 1 });
+db.Indian_Traffic_Violations.createIndex({ State: 1 });
+db.stock_prices.createIndex({ Date: 1 });
+
+sh.enableSharding("main");
+sh.shardCollection("main.netflix", { country: 1 });
+sh.shardCollection("main.Indian_Traffic_Violations", { State: 1 });
+sh.shardCollection("main.stock_prices", { Date: 1 });
+
+print("✅ Shard keys assigned.");
+EOF
+
